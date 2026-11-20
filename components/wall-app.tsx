@@ -24,6 +24,22 @@ type VisitorProfile = {
   avatarUrl: string | null;
 };
 
+function CameraIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="M8.7 5.25 10 3.5h4l1.3 1.75H19A2.25 2.25 0 0 1 21.25 7.5v9A2.25 2.25 0 0 1 19 18.75H5a2.25 2.25 0 0 1-2.25-2.25v-9A2.25 2.25 0 0 1 5 5.25h3.7ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-1.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="m20.65 3.33-8.02 17.05a.75.75 0 0 1-1.4-.12L9.4 13.85l-5.65-3.5a.75.75 0 0 1 .2-1.36l15.82-6.7a.75.75 0 0 1 .88 1.04ZM6 9.83l4.44 2.75a.75.75 0 0 1 .33.44l1.43 5.03 5.98-12.72L6 9.83Z" />
+    </svg>
+  );
+}
+
 function formatTimestamp(timestamp: string) {
   const value = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
   const elapsedMinutes = Math.round((Date.parse(timestamp) - Date.now()) / 60_000);
@@ -62,15 +78,9 @@ function loadVisitorProfile(): VisitorProfile {
 }
 
 export function WallApp() {
-  const ownerName = process.env.NEXT_PUBLIC_WALL_OWNER_NAME || "Alex Morgan";
+  const defaultOwnerName = process.env.NEXT_PUBLIC_WALL_OWNER_NAME || "Alex Morgan";
   const network = process.env.NEXT_PUBLIC_WALL_NETWORK || "Stanford Alum";
   const city = process.env.NEXT_PUBLIC_WALL_CITY || "Palo Alto, CA";
-  const initials = ownerName
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
   const [supabase, setSupabase] = useState<ReturnType<typeof getBrowserSupabase> | undefined>(
     undefined,
@@ -301,23 +311,34 @@ export function WallApp() {
   const remainingCharacters = MAX_MESSAGE_LENGTH - message.length;
   const visitorInitial = visitorName.trim().slice(0, 1).toUpperCase() || "V";
   const displayedAvatar = avatarPreview || avatarUrl;
+  const trimmedVisitorName = visitorName.trim();
+  const hasCustomizedProfile = Boolean(avatarUrl) || trimmedVisitorName !== "Visitor";
+  const profileName = hasCustomizedProfile && trimmedVisitorName ? trimmedVisitorName : defaultOwnerName;
+  const profileInitials = profileName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <main className="wall-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Wall home">
-          wall
-        </a>
-        <span className="topbar-note">a little corner of the internet</span>
+        <div className="topbar-inner">
+          <a className="brand" href="#top" aria-label="Wall home">
+            wall<span className="brand-dot">.</span>
+          </a>
+          <span className="topbar-note">a little corner of the internet</span>
+        </div>
       </header>
 
       <div className="page-grid" id="top">
-        <aside className="profile-column" aria-label={`${ownerName}'s profile`}>
+        <aside className="profile-column" aria-label={`${profileName}'s profile`}>
           <div
             className={avatarUrl ? "portrait portrait--uploaded" : "portrait"}
             role="img"
             aria-label={
-              avatarUrl ? `${visitorName.trim() || "Visitor"}'s profile photo` : `Placeholder portrait for ${ownerName}`
+              avatarUrl ? `${profileName}'s profile photo` : `Placeholder portrait for ${profileName}`
             }
           >
             {avatarUrl ? (
@@ -329,12 +350,15 @@ export function WallApp() {
                 unoptimized
               />
             ) : (
-              <span>{initials}</span>
+              <span>{profileInitials}</span>
             )}
           </div>
 
           <section className="info-card">
-            <h2>Information</h2>
+            <div className="info-card-heading">
+              <h2>About</h2>
+              <span className="profile-status">Online</span>
+            </div>
             <dl>
               <div>
                 <dt>Networks</dt>
@@ -350,9 +374,9 @@ export function WallApp() {
 
         <section className="wall-column" aria-labelledby="wall-heading">
           <div className="profile-heading">
-            <p className="eyebrow">{ownerName}&apos;s profile</p>
+            <p className="eyebrow">{profileName}&apos;s profile</p>
             <h1 id="wall-heading">The Wall</h1>
-            <p>Leave a note. Keep it kind. Make it memorable.</p>
+            <p>Leave a note, share a moment, and make this little corner of the internet memorable.</p>
           </div>
 
           {supabase === null && (
@@ -362,6 +386,13 @@ export function WallApp() {
           )}
 
           <form className="composer" onSubmit={handleSubmit}>
+            <div className="composer-heading">
+              <div>
+                <span className="section-kicker">New post</span>
+                <h2>Write something</h2>
+              </div>
+              <span className="privacy-note">Visible to everyone</span>
+            </div>
             <fieldset className="visitor-profile">
               <legend>Posting as</legend>
               <div className="visitor-profile-row">
@@ -402,6 +433,7 @@ export function WallApp() {
                       disabled={isSharing}
                     />
                     <label className="photo-picker" htmlFor="visitor-avatar">
+                      <CameraIcon />
                       {displayedAvatar ? "Change profile photo" : "Add profile photo"}
                     </label>
                     {displayedAvatar && (
@@ -415,14 +447,14 @@ export function WallApp() {
               </div>
             </fieldset>
 
-            <label htmlFor="wall-message">Write something…</label>
+            <label className="sr-only" htmlFor="wall-message">Write something…</label>
             <textarea
               id="wall-message"
               name="message"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               maxLength={MAX_MESSAGE_LENGTH}
-              placeholder={`What do you want to say to ${ownerName}?`}
+              placeholder={`What do you want to say to ${profileName}?`}
               rows={4}
             />
             <div className="photo-controls">
@@ -437,6 +469,7 @@ export function WallApp() {
                 disabled={isSharing}
               />
               <label className="photo-picker" htmlFor="wall-photo">
+                <CameraIcon />
                 Add a photo
               </label>
               <span>JPG, PNG, WebP, or GIF · up to 5 MB</span>
@@ -473,7 +506,8 @@ export function WallApp() {
                   !isProfileLoaded
                 }
               >
-                {isSharing ? "Sharing…" : "Share"}
+                <span>{isSharing ? "Sharing…" : "Share"}</span>
+                {!isSharing && <SendIcon />}
               </button>
             </div>
           </form>
@@ -485,8 +519,11 @@ export function WallApp() {
           )}
 
           <div className="feed-heading">
-            <h2>Recent posts</h2>
-            <span>{posts.length} on the wall</span>
+            <div>
+              <span className="section-kicker">The latest</span>
+              <h2>Recent posts</h2>
+            </div>
+            <span className="post-count">{posts.length} {posts.length === 1 ? "post" : "posts"}</span>
           </div>
 
           <div className="feed" aria-live="polite" aria-busy={isLoading}>

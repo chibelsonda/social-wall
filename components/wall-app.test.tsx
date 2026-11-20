@@ -9,7 +9,7 @@ describe("WallApp", () => {
 
     const input = screen.getByLabelText("Write something…");
     await user.type(input, "Hello from the test wall!");
-    await user.click(screen.getByRole("button", { name: "Share" }));
+    await user.click(screen.getByRole("button", { name: "Share post" }));
 
     await waitFor(() => {
       expect(screen.getByText("Hello from the test wall!")).toBeInTheDocument();
@@ -20,12 +20,12 @@ describe("WallApp", () => {
     );
   });
 
-  it("disables Share for a blank message and enforces 280 characters", async () => {
+  it("disables Share post for a blank message and enforces 280 characters", async () => {
     const user = userEvent.setup();
     render(<WallApp />);
 
     const input = screen.getByLabelText("Write something…");
-    const shareButton = screen.getByRole("button", { name: "Share" });
+    const shareButton = screen.getByRole("button", { name: "Share post" });
     expect(shareButton).toBeDisabled();
 
     await user.type(input, "a".repeat(285));
@@ -42,7 +42,7 @@ describe("WallApp", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "Casey Rivera");
     await user.type(screen.getByLabelText("Write something…"), "Posting with my own name.");
-    await user.click(screen.getByRole("button", { name: "Share" }));
+    await user.click(screen.getByRole("button", { name: "Share post" }));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Casey Rivera" })).toBeInTheDocument();
@@ -74,5 +74,7 @@ describe("WallApp", () => {
     expect(
       await screen.findByRole("img", { name: "Casey Rivera's profile photo" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Casey Rivera's profile")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("What do you want to say to Casey Rivera?")).toBeInTheDocument();
   });
 });
