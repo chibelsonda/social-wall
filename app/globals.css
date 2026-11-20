@@ -209,17 +209,16 @@ textarea {
 }
 
 .composer {
-  margin: 1.4rem 0 2.5rem;
-  padding: 1.25rem;
-  background: white;
-  border: 2px solid #29343e;
-  border-radius: 6px;
+  margin: 1.75rem 0 2.75rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .visitor-profile {
   min-width: 0;
-  margin: 0 0 1.25rem;
-  padding: 0 0 1.2rem;
+  margin: 0 0 1.5rem;
+  padding: 0 0 1.35rem;
   border: 0;
   border-bottom: 1px solid var(--line);
 }
@@ -331,7 +330,7 @@ textarea {
   resize: vertical;
   padding: 0.9rem 1rem;
   color: var(--ink);
-  background: #fbfdff;
+  background: rgba(255, 255, 255, 0.72);
   border: 1px solid #9eacb9;
   border-radius: 3px;
   font-size: 1rem;
@@ -447,7 +446,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: 0.8rem;
+  margin-top: 1rem;
 }
 
 .character-count {
@@ -637,7 +636,7 @@ textarea {
   }
 
   .composer {
-    padding: 1rem;
+    padding: 0;
   }
 
   .visitor-profile-row {
