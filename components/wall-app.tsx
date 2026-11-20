@@ -11,7 +11,14 @@ import {
   validateAvatar,
   validatePhotoSelection,
 } from "@/lib/photos";
-import { addPostNewestFirst, createPost, fetchPosts, subscribeToPosts } from "@/lib/posts";
+import {
+  addPostNewestFirst,
+  createPost,
+  fetchPosts,
+  replaceAuthorAvatar,
+  replacePersistedAuthorAvatar,
+  subscribeToPosts,
+} from "@/lib/posts";
 import { getBrowserSupabase } from "@/lib/supabase";
 import type { Post } from "@/lib/types";
 
@@ -198,13 +205,8 @@ export function WallApp() {
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem(THEME_KEY);
-    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
     const resolvedTheme: Theme =
-      savedTheme === "light" || savedTheme === "dark"
-        ? savedTheme
-        : prefersDark
-          ? "dark"
-          : "light";
+      savedTheme === "light" || savedTheme === "dark" ? savedTheme : "light";
 
     setTheme(resolvedTheme);
     document.documentElement.dataset.theme = resolvedTheme;
@@ -362,11 +364,46 @@ export function WallApp() {
     setSelectedPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index));
   }
 
-  function clearAvatar() {
+  function updateVisiblePostAvatars(
+    author: string,
+    nextAvatarUrl: string | null,
+  ) {
+    setPosts((current) => {
+      const updated = replaceAuthorAvatar(current, author, nextAvatarUrl);
+      if (!supabase) window.localStorage.setItem(LOCAL_POSTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }
+
+  async function clearAvatar() {
+    const previousAvatarUrl = avatarUrl;
+
     setSelectedAvatar(null);
-    setAvatarUrl(null);
-    setIsAvatarSaved(true);
     if (avatarInputRef.current) avatarInputRef.current.value = "";
+    if (!previousAvatarUrl) {
+      setAvatarUrl(null);
+      setIsAvatarSaved(true);
+      return;
+    }
+
+    setError(null);
+    setIsAvatarSaving(true);
+
+    try {
+      if (supabase) {
+        await replacePersistedAuthorAvatar(supabase, visitorName.trim(), null);
+      }
+
+      updateVisiblePostAvatars(visitorName.trim(), null);
+      setAvatarUrl(null);
+      setIsAvatarSaved(true);
+    } catch {
+      setError(
+        "Failed to remove the profile photo from your posts. Make sure migration 006 has been run.",
+      );
+    } finally {
+      setIsAvatarSaving(false);
+    }
   }
 
   async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
@@ -395,6 +432,10 @@ export function WallApp() {
 
     try {
       const uploadedAvatar = await uploadVisitorAvatar(supabase, file);
+
+      await replacePersistedAuthorAvatar(supabase, visitorName.trim(), uploadedAvatar.publicUrl);
+      updateVisiblePostAvatars(visitorName.trim(), uploadedAvatar.publicUrl);
+
       setAvatarUrl(uploadedAvatar.publicUrl);
       setSelectedAvatar(null);
       setIsAvatarSaved(true);

@@ -398,7 +398,7 @@ html[data-theme="dark"] .portrait span {
 .profile-heading h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(3.5rem, 8vw, 5.4rem);
+  font-size: clamp(3rem, 6.5vw, 4.5rem);
   font-weight: 600;
   letter-spacing: -0.05em;
   line-height: 0.96;
@@ -806,6 +806,10 @@ html[data-theme="dark"] .remove-photo:hover {
   font-size: 1.25rem;
 }
 
+.post-content {
+  display: contents;
+}
+
 .post-meta {
   display: flex;
   align-items: baseline;
@@ -828,6 +832,7 @@ html[data-theme="dark"] .remove-photo:hover {
 }
 
 .post p {
+  grid-column: 1 / -1;
   margin: 0.4rem 0 0;
   color: var(--content-text);
   font-size: 1rem;
@@ -837,10 +842,11 @@ html[data-theme="dark"] .remove-photo:hover {
 }
 
 .post-gallery {
+  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
-  width: min(100%, 620px);
+  width: 100%;
   margin-top: 0.9rem;
   overflow: hidden;
   border-radius: 4px;
@@ -1051,7 +1057,7 @@ html[data-theme="dark"] .remove-photo:hover {
   }
 
   .profile-heading h1 {
-    font-size: clamp(3.25rem, 20vw, 4.5rem);
+    font-size: clamp(2.75rem, 16vw, 3.75rem);
   }
 
   .profile-heading > p:last-child {

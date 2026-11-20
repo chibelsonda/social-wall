@@ -1,4 +1,4 @@
-import { addPostNewestFirst } from "./posts";
+import { addPostNewestFirst, replaceAuthorAvatar } from "./posts";
 import type { Post } from "./types";
 
 describe("addPostNewestFirst", () => {
@@ -23,5 +23,33 @@ describe("addPostNewestFirst", () => {
     };
 
     expect(addPostNewestFirst([older, newer], newer).map((post) => post.id)).toEqual(["newer", "older"]);
+  });
+});
+
+describe("replaceAuthorAvatar", () => {
+  it("updates all posts from the visitor while leaving other authors unchanged", () => {
+    const matchingPost: Post = {
+      id: "matching",
+      author: "Casey",
+      avatar_url: "https://example.com/old-avatar.png",
+      message: "Mine",
+      image_url: null,
+      image_urls: [],
+      created_at: "2025-01-01T11:00:00.000Z",
+    };
+    const otherPost: Post = {
+      ...matchingPost,
+      id: "other",
+      author: "Someone else",
+      avatar_url: "https://example.com/other-avatar.png",
+    };
+
+    expect(
+      replaceAuthorAvatar(
+        [matchingPost, otherPost],
+        "Casey",
+        null,
+      ),
+    ).toEqual([{ ...matchingPost, avatar_url: null }, otherPost]);
   });
 });

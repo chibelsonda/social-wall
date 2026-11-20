@@ -202,6 +202,40 @@ describe("WallApp", () => {
     expect(screen.getByPlaceholderText("What do you want to say to Casey Rivera?")).toBeInTheDocument();
   });
 
+  it("removes the visitor avatar from their existing local posts", async () => {
+    const user = userEvent.setup();
+    const previousAvatarUrl = "https://example.com/casey-avatar.png";
+    window.localStorage.setItem(
+      "my-wall-visitor-profile",
+      JSON.stringify({ name: "Casey Rivera", avatarUrl: previousAvatarUrl }),
+    );
+    window.localStorage.setItem(
+      "my-wall-demo-posts",
+      JSON.stringify([
+        {
+          id: "casey-post",
+          author: "Casey Rivera",
+          avatar_url: previousAvatarUrl,
+          message: "Posting with my profile photo.",
+          image_url: null,
+          image_urls: [],
+          created_at: new Date().toISOString(),
+        },
+      ]),
+    );
+
+    const { container } = render(<WallApp />);
+    await user.click(await screen.findByRole("button", { name: "Remove profile photo" }));
+
+    await waitFor(() => {
+      expect(
+        container.querySelector<HTMLImageElement>(".post-avatar img")?.getAttribute("src"),
+      ).toContain("default-avatar.png");
+    });
+    expect(JSON.parse(window.localStorage.getItem("my-wall-demo-posts") || "[]")[0].avatar_url)
+      .toBeNull();
+  });
+
   it("switches themes and remembers the preference", async () => {
     const user = userEvent.setup();
     render(<WallApp />);
@@ -211,5 +245,12 @@ describe("WallApp", () => {
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(window.localStorage.getItem("my-wall-theme")).toBe("dark");
     expect(screen.getByRole("button", { name: "Switch to light theme" })).toBeInTheDocument();
+  });
+
+  it("uses the light theme when no preference has been saved", () => {
+    render(<WallApp />);
+
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
   });
 });
