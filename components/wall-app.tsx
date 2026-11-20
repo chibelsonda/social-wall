@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { demoPosts } from "@/lib/demo-posts";
 import { removePostPhoto, uploadPostPhoto, validatePhoto } from "@/lib/photos";
 import { addPostNewestFirst, createPost, fetchPosts, subscribeToPosts } from "@/lib/posts";
@@ -41,7 +41,9 @@ export function WallApp() {
     .slice(0, 2)
     .toUpperCase();
 
-  const supabase = useMemo(() => getBrowserSupabase(), []);
+  const [supabase, setSupabase] = useState<ReturnType<typeof getBrowserSupabase> | undefined>(
+    undefined,
+  );
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState("");
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
@@ -50,6 +52,10 @@ export function WallApp() {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setSupabase(getBrowserSupabase());
+  }, []);
 
   useEffect(() => {
     if (!selectedPhoto) {
@@ -64,6 +70,8 @@ export function WallApp() {
 
   useEffect(() => {
     let active = true;
+
+    if (supabase === undefined) return;
 
     if (!supabase) {
       setPosts(loadLocalPosts());
@@ -216,7 +224,7 @@ export function WallApp() {
             <p>Leave a note. Keep it kind. Make it memorable.</p>
           </div>
 
-          {!supabase && (
+          {supabase === null && (
             <div className="demo-banner" role="status">
               Demo mode · Posts are saved in this browser. Add Supabase keys for a shared live wall.
             </div>
@@ -270,7 +278,11 @@ export function WallApp() {
               <span className={remainingCharacters < 30 ? "character-count character-count--low" : "character-count"}>
                 {remainingCharacters} characters left
               </span>
-              <button className="share-button" type="submit" disabled={!message.trim() || isSharing}>
+              <button
+                className="share-button"
+                type="submit"
+                disabled={!message.trim() || isSharing || supabase === undefined}
+              >
                 {isSharing ? "Sharing…" : "Share"}
               </button>
             </div>
