@@ -59,4 +59,20 @@ describe("WallApp", () => {
       message: "Posting with my own name.",
     });
   });
+
+  it("uses the saved visitor avatar as the main profile photo", async () => {
+    window.localStorage.setItem(
+      "my-wall-visitor-profile",
+      JSON.stringify({
+        name: "Casey Rivera",
+        avatarUrl: "https://example.com/casey-avatar.png",
+      }),
+    );
+
+    render(<WallApp />);
+
+    expect(
+      await screen.findByRole("img", { name: "Casey Rivera's profile photo" }),
+    ).toBeInTheDocument();
+  });
 });

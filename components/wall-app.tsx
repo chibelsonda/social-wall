@@ -313,8 +313,24 @@ export function WallApp() {
 
       <div className="page-grid" id="top">
         <aside className="profile-column" aria-label={`${ownerName}'s profile`}>
-          <div className="portrait" role="img" aria-label={`Placeholder portrait for ${ownerName}`}>
-            <span>{initials}</span>
+          <div
+            className={avatarUrl ? "portrait portrait--uploaded" : "portrait"}
+            role="img"
+            aria-label={
+              avatarUrl ? `${visitorName.trim() || "Visitor"}'s profile photo` : `Placeholder portrait for ${ownerName}`
+            }
+          >
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt=""
+                width={640}
+                height={640}
+                unoptimized
+              />
+            ) : (
+              <span>{initials}</span>
+            )}
           </div>
 
           <section className="info-card">
