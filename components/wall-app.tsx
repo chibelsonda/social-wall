@@ -108,7 +108,10 @@ function MoonIcon() {
 
 function formatTimestamp(timestamp: string) {
   const value = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  const elapsedMinutes = Math.round((Date.parse(timestamp) - Date.now()) / 60_000);
+  const elapsedMilliseconds = Date.parse(timestamp) - Date.now();
+  if (Math.abs(elapsedMilliseconds) < 60_000) return "now";
+
+  const elapsedMinutes = Math.round(elapsedMilliseconds / 60_000);
 
   if (Math.abs(elapsedMinutes) < 60) return value.format(elapsedMinutes, "minute");
   const elapsedHours = Math.round(elapsedMinutes / 60);

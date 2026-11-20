@@ -36,6 +36,7 @@ describe("WallApp", () => {
     await waitFor(() => {
       expect(screen.getByText("Hello from the test wall!")).toBeInTheDocument();
     });
+    expect(screen.getByText("now")).toBeInTheDocument();
     expect(input).toHaveValue("");
     expect(JSON.parse(window.localStorage.getItem("my-wall-demo-posts") || "[]")[0].message).toBe(
       "Hello from the test wall!",
