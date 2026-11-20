@@ -16,9 +16,12 @@ A nostalgic Facebook-style wall built with Next.js 15, React 19, and Supabase. V
    cp .env.example .env.local
    ```
 
-3. Create a Supabase project. In its SQL Editor, run [`supabase/migrations/001_create_posts.sql`](supabase/migrations/001_create_posts.sql). This creates the `posts` table, public read/insert policies, the newest-first index, and enables Realtime.
+3. Create a Supabase project. In its SQL Editor, run these migrations in order:
 
-4. Add the project URL and anon key from **Project Settings → API** to `.env.local`.
+   - [`supabase/migrations/001_create_posts.sql`](supabase/migrations/001_create_posts.sql) creates the posts table, public read/insert policies, newest-first index, and Realtime feed.
+   - [`supabase/migrations/002_add_post_photos.sql`](supabase/migrations/002_add_post_photos.sql) adds photo URLs and creates the public `wall-photos` Storage bucket with restricted upload policies.
+
+4. Add the project URL and publishable key from **Connect → App Frameworks** to `.env.local`.
 
 5. Start the app:
 

@@ -7,12 +7,14 @@ describe("addPostNewestFirst", () => {
       id: "older",
       author: "A",
       message: "Older",
+      image_url: null,
       created_at: "2025-01-01T10:00:00.000Z",
     };
     const newer: Post = {
       id: "newer",
       author: "B",
       message: "Newer",
+      image_url: null,
       created_at: "2025-01-01T11:00:00.000Z",
     };
 

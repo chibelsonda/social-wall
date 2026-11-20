@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { demoPosts } from "@/lib/demo-posts";
+import { removePostPhoto, uploadPostPhoto, validatePhoto } from "@/lib/photos";
 import { addPostNewestFirst, createPost, fetchPosts, subscribeToPosts } from "@/lib/posts";
 import { getBrowserSupabase } from "@/lib/supabase";
 import type { Post } from "@/lib/types";
@@ -42,9 +44,23 @@ export function WallApp() {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState("");
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!selectedPhoto) {
+      setPhotoPreview(null);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(selectedPhoto);
+    setPhotoPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [selectedPhoto]);
 
   useEffect(() => {
     let active = true;
@@ -76,6 +92,26 @@ export function WallApp() {
     };
   }, [supabase]);
 
+  function clearSelectedPhoto() {
+    setSelectedPhoto(null);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validationError = validatePhoto(file);
+    if (validationError) {
+      setError(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    setError(null);
+    setSelectedPhoto(file);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedMessage = message.trim();
@@ -84,15 +120,46 @@ export function WallApp() {
     setIsSharing(true);
     setError(null);
 
+    let uploadedPhotoPath: string | null = null;
+
     try {
       if (supabase) {
-        const savedPost = await createPost(supabase, { author: "Visitor", message: trimmedMessage });
+        let imageUrl: string | null = null;
+
+        if (selectedPhoto) {
+          try {
+            const uploadedPhoto = await uploadPostPhoto(supabase, selectedPhoto);
+            uploadedPhotoPath = uploadedPhoto.path;
+            imageUrl = uploadedPhoto.publicUrl;
+          } catch {
+            setError("Failed to upload photo. Please try again.");
+            return;
+          }
+        }
+
+        let savedPost: Post;
+        try {
+          savedPost = await createPost(supabase, {
+            author: "Visitor",
+            message: trimmedMessage,
+            image_url: imageUrl,
+          });
+        } catch (postError) {
+          if (uploadedPhotoPath) await removePostPhoto(supabase, uploadedPhotoPath);
+          throw postError;
+        }
         setPosts((current) => addPostNewestFirst(current, savedPost));
       } else {
+        if (selectedPhoto) {
+          setError("Photo uploads require a connected Supabase project.");
+          return;
+        }
+
         const localPost: Post = {
           id: crypto.randomUUID(),
           author: "Visitor",
           message: trimmedMessage,
+          image_url: null,
           created_at: new Date().toISOString(),
         };
         setPosts((current) => {
@@ -102,6 +169,7 @@ export function WallApp() {
         });
       }
       setMessage("");
+      clearSelectedPhoto();
     } catch {
       setError("Your post wasn't shared. Please check your connection and try again.");
     } finally {
@@ -165,11 +233,44 @@ export function WallApp() {
               placeholder={`What do you want to say to ${ownerName}?`}
               rows={4}
             />
+            <div className="photo-controls">
+              <input
+                ref={photoInputRef}
+                className="photo-input"
+                id="wall-photo"
+                name="photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handlePhotoChange}
+                disabled={isSharing}
+              />
+              <label className="photo-picker" htmlFor="wall-photo">
+                Add a photo
+              </label>
+              <span>JPG, PNG, WebP, or GIF · up to 5 MB</span>
+            </div>
+            {selectedPhoto && photoPreview && (
+              <div className="photo-preview">
+                <Image
+                  src={photoPreview}
+                  alt="Selected photo preview"
+                  width={640}
+                  height={420}
+                  unoptimized
+                />
+                <div>
+                  <span>{selectedPhoto.name}</span>
+                  <button className="remove-photo" type="button" onClick={clearSelectedPhoto}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="composer-footer">
               <span className={remainingCharacters < 30 ? "character-count character-count--low" : "character-count"}>
                 {remainingCharacters} characters left
               </span>
-              <button type="submit" disabled={!message.trim() || isSharing}>
+              <button className="share-button" type="submit" disabled={!message.trim() || isSharing}>
                 {isSharing ? "Sharing…" : "Share"}
               </button>
             </div>
@@ -203,6 +304,16 @@ export function WallApp() {
                       <time dateTime={post.created_at}>{formatTimestamp(post.created_at)}</time>
                     </div>
                     <p>{post.message}</p>
+                    {post.image_url && (
+                      <Image
+                        className="post-image"
+                        src={post.image_url}
+                        alt={`Photo shared by ${post.author}`}
+                        width={960}
+                        height={640}
+                        unoptimized
+                      />
+                    )}
                   </div>
                 </article>
               ))
