@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WallApp } from "./wall-app";
 
@@ -53,8 +53,26 @@ describe("WallApp", () => {
     await user.upload(screen.getByLabelText("Add photos"), [firstPhoto, secondPhoto]);
 
     expect(await screen.findByText("2 of 5 photos selected")).toBeInTheDocument();
+    const dropzone = screen.getByTestId("photo-dropzone");
+    expect(dropzone).toContainElement(screen.getByAltText("Selected photo 1 preview"));
+    expect(dropzone).toContainElement(screen.getByAltText("Selected photo 2 preview"));
+  });
+
+  it("accepts photos dropped onto the upload area", async () => {
+    render(<WallApp />);
+
+    const photo = new File(["dropped"], "dropped.webp", { type: "image/webp" });
+    const dropzone = screen.getByTestId("photo-dropzone");
+
+    fireEvent.dragOver(dropzone, {
+      dataTransfer: { files: [photo], dropEffect: "none" },
+    });
+    expect(screen.getByText("Drop photos here")).toBeInTheDocument();
+
+    fireEvent.drop(dropzone, { dataTransfer: { files: [photo] } });
+
+    expect(await screen.findByText("1 of 5 photos selected")).toBeInTheDocument();
     expect(screen.getByAltText("Selected photo 1 preview")).toBeInTheDocument();
-    expect(screen.getByAltText("Selected photo 2 preview")).toBeInTheDocument();
   });
 
   it("opens published post images in a dismissible overlay", async () => {
@@ -88,6 +106,37 @@ describe("WallApp", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "Post photo viewer" })).not.toBeInTheDocument();
     });
+  });
+
+  it("updates relative post times without refreshing the page", () => {
+    vi.useFakeTimers();
+
+    try {
+      const now = new Date("2026-11-20T07:00:00.000Z");
+      vi.setSystemTime(now);
+      window.localStorage.setItem(
+        "my-wall-demo-posts",
+        JSON.stringify([
+          {
+            id: "timed-post",
+            author: "Casey",
+            avatar_url: null,
+            message: "Watch my timestamp.",
+            image_url: null,
+            image_urls: [],
+            created_at: new Date(now.getTime() - 61_000).toISOString(),
+          },
+        ]),
+      );
+
+      render(<WallApp />);
+      expect(screen.getByText("1 minute ago")).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(screen.getByText("2 minutes ago")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("disables Share post for a blank message and enforces 280 characters", async () => {

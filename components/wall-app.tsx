@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { demoPosts } from "@/lib/demo-posts";
 import {
   MAX_POST_PHOTOS,
@@ -33,6 +33,26 @@ function CameraIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
       <path d="M8.7 5.25 10 3.5h4l1.3 1.75H19A2.25 2.25 0 0 1 21.25 7.5v9A2.25 2.25 0 0 1 19 18.75H5a2.25 2.25 0 0 1-2.25-2.25v-9A2.25 2.25 0 0 1 5 5.25h3.7ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-1.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z" />
+    </svg>
+  );
+}
+
+function PhotoIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="28"
+      height="28"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
+      <circle cx="9" cy="9.5" r="1.5" />
+      <path d="m5.5 17 4.5-4.5 3.25 3.25 2.25-2.25 3 3" />
     </svg>
   );
 }
@@ -106,9 +126,9 @@ function MoonIcon() {
   );
 }
 
-function formatTimestamp(timestamp: string) {
+function formatTimestamp(timestamp: string, currentTime: number) {
   const value = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  const elapsedMilliseconds = Date.parse(timestamp) - Date.now();
+  const elapsedMilliseconds = Date.parse(timestamp) - currentTime;
   if (Math.abs(elapsedMilliseconds) < 60_000) return "now";
 
   const elapsedMinutes = Math.round(elapsedMilliseconds / 60_000);
@@ -151,6 +171,7 @@ export function WallApp() {
     undefined,
   );
   const [posts, setPosts] = useState<Post[]>([]);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [message, setMessage] = useState("");
   const [visitorName, setVisitorName] = useState("Visitor");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -161,6 +182,7 @@ export function WallApp() {
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [isPhotoDragging, setIsPhotoDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,6 +208,21 @@ export function WallApp() {
 
     setTheme(resolvedTheme);
     document.documentElement.dataset.theme = resolvedTheme;
+  }, []);
+
+  useEffect(() => {
+    const updateCurrentTime = () => setCurrentTime(Date.now());
+    const timer = window.setInterval(updateCurrentTime, 30_000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") updateCurrentTime();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -371,20 +408,49 @@ export function WallApp() {
     }
   }
 
-  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
+  function addSelectedPhotos(files: File[]) {
     if (files.length === 0) return;
 
     const validationError = validatePhotoSelection(files, selectedPhotos.length);
     if (validationError) {
       setError(validationError);
-      event.target.value = "";
       return;
     }
 
     setError(null);
     setSelectedPhotos((current) => [...current, ...files]);
+  }
+
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    addSelectedPhotos(Array.from(event.target.files ?? []));
     event.target.value = "";
+  }
+
+  function handlePhotoDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (isSharing || selectedPhotos.length >= MAX_POST_PHOTOS) return;
+
+    event.dataTransfer.dropEffect = "copy";
+    setIsPhotoDragging(true);
+  }
+
+  function handlePhotoDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (
+      event.relatedTarget instanceof Node &&
+      event.currentTarget.contains(event.relatedTarget)
+    ) {
+      return;
+    }
+
+    setIsPhotoDragging(false);
+  }
+
+  function handlePhotoDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsPhotoDragging(false);
+    if (isSharing || selectedPhotos.length >= MAX_POST_PHOTOS) return;
+
+    addSelectedPhotos(Array.from(event.dataTransfer.files));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -656,6 +722,23 @@ export function WallApp() {
                 }
                 rows={4}
               />
+            </div>
+            <div
+              className={[
+                "photo-dropzone",
+                isPhotoDragging ? "photo-dropzone--active" : "",
+                isSharing || selectedPhotos.length >= MAX_POST_PHOTOS
+                  ? "photo-dropzone--disabled"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              data-testid="photo-dropzone"
+              onDragEnter={handlePhotoDragOver}
+              onDragOver={handlePhotoDragOver}
+              onDragLeave={handlePhotoDragLeave}
+              onDrop={handlePhotoDrop}
+            >
               <input
                 ref={photoInputRef}
                 className="photo-input"
@@ -668,49 +751,57 @@ export function WallApp() {
                 disabled={isSharing || selectedPhotos.length >= MAX_POST_PHOTOS}
               />
               <label
-                className="message-photo-picker"
+                className="photo-dropzone-label"
                 htmlFor="wall-photo"
+                aria-label="Add photos"
                 title={`Add photos · up to ${MAX_POST_PHOTOS} images, 5 MB each`}
               >
-                <CameraIcon />
-                <span className="sr-only">Add photos</span>
+                <PhotoIcon />
+                <strong>
+                  {selectedPhotos.length >= MAX_POST_PHOTOS
+                    ? "Photo limit reached"
+                    : isPhotoDragging
+                      ? "Drop photos here"
+                      : "Drag & drop photos here"}
+                </strong>
+                <span>Or click to browse · JPG, PNG, WebP, or GIF · up to 5 MB each</span>
               </label>
-            </div>
-            {selectedPhotos.length > 0 && photoPreviews.length === selectedPhotos.length && (
-              <div className="photo-preview-section">
-                <div className="photo-preview-heading">
-                  <span>
-                    {selectedPhotos.length} of {MAX_POST_PHOTOS} photos selected
-                  </span>
-                  <button type="button" onClick={clearSelectedPhotos}>Remove all</button>
-                </div>
-                <div className="photo-preview-grid">
-                  {selectedPhotos.map((photo, index) => (
-                    <div className="photo-preview" key={`${photo.name}-${photo.lastModified}-${index}`}>
-                      <Image
-                        src={photoPreviews[index]}
-                        alt={`Selected photo ${index + 1} preview`}
-                        width={640}
-                        height={420}
-                        unoptimized
-                      />
-                      <div>
-                        <span>{photo.name}</span>
-                        <button
-                          className="remove-photo"
-                          type="button"
-                          onClick={() => removeSelectedPhoto(index)}
-                          title={`Remove ${photo.name}`}
-                          aria-label={`Remove ${photo.name}`}
-                        >
-                          <TrashIcon />
-                        </button>
+              {selectedPhotos.length > 0 && photoPreviews.length === selectedPhotos.length && (
+                <div className="photo-preview-section">
+                  <div className="photo-preview-heading">
+                    <span>
+                      {selectedPhotos.length} of {MAX_POST_PHOTOS} photos selected
+                    </span>
+                    <button type="button" onClick={clearSelectedPhotos}>Remove all</button>
+                  </div>
+                  <div className="photo-preview-grid">
+                    {selectedPhotos.map((photo, index) => (
+                      <div className="photo-preview" key={`${photo.name}-${photo.lastModified}-${index}`}>
+                        <Image
+                          src={photoPreviews[index]}
+                          alt={`Selected photo ${index + 1} preview`}
+                          width={640}
+                          height={420}
+                          unoptimized
+                        />
+                        <div>
+                          <span>{photo.name}</span>
+                          <button
+                            className="remove-photo"
+                            type="button"
+                            onClick={() => removeSelectedPhoto(index)}
+                            title={`Remove ${photo.name}`}
+                            aria-label={`Remove ${photo.name}`}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             <div className="composer-footer">
               <span className={remainingCharacters < 30 ? "character-count character-count--low" : "character-count"}>
                 {remainingCharacters} characters left
@@ -740,10 +831,7 @@ export function WallApp() {
           )}
 
           <div className="feed-heading">
-            <div>
-              <span className="section-kicker">The latest</span>
-              <h2>Recent posts</h2>
-            </div>
+            <h2>Recent posts</h2>
             <span className="post-count">{posts.length} {posts.length === 1 ? "post" : "posts"}</span>
           </div>
 
@@ -775,7 +863,9 @@ export function WallApp() {
                     <div className="post-content">
                       <div className="post-meta">
                         <h3>{post.author}</h3>
-                        <time dateTime={post.created_at}>{formatTimestamp(post.created_at)}</time>
+                        <time dateTime={post.created_at}>
+                          {formatTimestamp(post.created_at, currentTime)}
+                        </time>
                       </div>
                       <p>{post.message}</p>
                       {postImages.length > 0 && (
