@@ -20,6 +20,7 @@ A nostalgic Facebook-style wall built with Next.js 15, React 19, and Supabase. V
 
    - [`supabase/migrations/001_create_posts.sql`](supabase/migrations/001_create_posts.sql) creates the posts table, public read/insert policies, newest-first index, and Realtime feed.
    - [`supabase/migrations/002_add_post_photos.sql`](supabase/migrations/002_add_post_photos.sql) adds photo URLs and creates the public `wall-photos` Storage bucket with restricted upload policies.
+   - [`supabase/migrations/003_add_visitor_profiles.sql`](supabase/migrations/003_add_visitor_profiles.sql) adds per-post avatars and creates the public `wall-avatars` Storage bucket for visitor profile photos.
 
 4. Add the project URL and publishable key from **Connect → App Frameworks** to `.env.local`.
 
@@ -34,6 +35,10 @@ Without Supabase variables, the UI runs in demo mode and stores posts in the cur
 ## Customize the profile
 
 The optional values in `.env.example` set the profile name, network, and city. The portrait is a deliberate placeholder made from CSS so it can be replaced later with a personal image.
+
+## Visitor profiles
+
+Visitors can choose a display name and an optional profile photo before posting. The current profile is remembered in that browser, while each post stores its own name and avatar snapshot. This intentionally remains a no-login wall, so display names are not verified identities.
 
 ## Verification
 

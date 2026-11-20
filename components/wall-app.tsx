@@ -3,13 +3,26 @@
 import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { demoPosts } from "@/lib/demo-posts";
-import { removePostPhoto, uploadPostPhoto, validatePhoto } from "@/lib/photos";
+import {
+  removePostPhoto,
+  uploadPostPhoto,
+  uploadVisitorAvatar,
+  validateAvatar,
+  validatePhoto,
+} from "@/lib/photos";
 import { addPostNewestFirst, createPost, fetchPosts, subscribeToPosts } from "@/lib/posts";
 import { getBrowserSupabase } from "@/lib/supabase";
 import type { Post } from "@/lib/types";
 
 const MAX_MESSAGE_LENGTH = 280;
+const MAX_VISITOR_NAME_LENGTH = 40;
 const LOCAL_POSTS_KEY = "my-wall-demo-posts";
+const VISITOR_PROFILE_KEY = "my-wall-visitor-profile";
+
+type VisitorProfile = {
+  name: string;
+  avatarUrl: string | null;
+};
 
 function formatTimestamp(timestamp: string) {
   const value = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
@@ -30,6 +43,24 @@ function loadLocalPosts() {
   }
 }
 
+function loadVisitorProfile(): VisitorProfile {
+  try {
+    const stored = window.localStorage.getItem(VISITOR_PROFILE_KEY);
+    if (!stored) return { name: "Visitor", avatarUrl: null };
+
+    const profile = JSON.parse(stored) as Partial<VisitorProfile>;
+    return {
+      name:
+        typeof profile.name === "string" && profile.name.trim()
+          ? profile.name.slice(0, MAX_VISITOR_NAME_LENGTH)
+          : "Visitor",
+      avatarUrl: typeof profile.avatarUrl === "string" ? profile.avatarUrl : null,
+    };
+  } catch {
+    return { name: "Visitor", avatarUrl: null };
+  }
+}
+
 export function WallApp() {
   const ownerName = process.env.NEXT_PUBLIC_WALL_OWNER_NAME || "Alex Morgan";
   const network = process.env.NEXT_PUBLIC_WALL_NETWORK || "Stanford Alum";
@@ -46,16 +77,46 @@ export function WallApp() {
   );
   const [posts, setPosts] = useState<Post[]>([]);
   const [message, setMessage] = useState("");
+  const [visitorName, setVisitorName] = useState("Visitor");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isProfileLoaded, setIsProfileLoaded] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSupabase(getBrowserSupabase());
+    const profile = loadVisitorProfile();
+    setVisitorName(profile.name);
+    setAvatarUrl(profile.avatarUrl);
+    setIsProfileLoaded(true);
   }, []);
+
+  useEffect(() => {
+    if (!isProfileLoaded) return;
+
+    window.localStorage.setItem(
+      VISITOR_PROFILE_KEY,
+      JSON.stringify({ name: visitorName, avatarUrl } satisfies VisitorProfile),
+    );
+  }, [avatarUrl, isProfileLoaded, visitorName]);
+
+  useEffect(() => {
+    if (!selectedAvatar) {
+      setAvatarPreview(null);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(selectedAvatar);
+    setAvatarPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [selectedAvatar]);
 
   useEffect(() => {
     if (!selectedPhoto) {
@@ -105,6 +166,27 @@ export function WallApp() {
     if (photoInputRef.current) photoInputRef.current.value = "";
   }
 
+  function clearAvatar() {
+    setSelectedAvatar(null);
+    setAvatarUrl(null);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+  }
+
+  function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validationError = validateAvatar(file);
+    if (validationError) {
+      setError(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    setError(null);
+    setSelectedAvatar(file);
+  }
+
   function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -123,7 +205,16 @@ export function WallApp() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedMessage = message.trim();
-    if (!trimmedMessage || trimmedMessage.length > MAX_MESSAGE_LENGTH || isSharing) return;
+    const trimmedVisitorName = visitorName.trim();
+    if (
+      !trimmedMessage ||
+      trimmedMessage.length > MAX_MESSAGE_LENGTH ||
+      !trimmedVisitorName ||
+      isSharing ||
+      supabase === undefined
+    ) {
+      return;
+    }
 
     setIsSharing(true);
     setError(null);
@@ -131,6 +222,26 @@ export function WallApp() {
     let uploadedPhotoPath: string | null = null;
 
     try {
+      let resolvedAvatarUrl = avatarUrl;
+
+      if (selectedAvatar) {
+        if (!supabase) {
+          setError("Profile photo uploads require a connected Supabase project.");
+          return;
+        }
+
+        try {
+          const uploadedAvatar = await uploadVisitorAvatar(supabase, selectedAvatar);
+          resolvedAvatarUrl = uploadedAvatar.publicUrl;
+          setAvatarUrl(uploadedAvatar.publicUrl);
+          setSelectedAvatar(null);
+          if (avatarInputRef.current) avatarInputRef.current.value = "";
+        } catch {
+          setError("Failed to upload profile photo. Please try again.");
+          return;
+        }
+      }
+
       if (supabase) {
         let imageUrl: string | null = null;
 
@@ -148,7 +259,8 @@ export function WallApp() {
         let savedPost: Post;
         try {
           savedPost = await createPost(supabase, {
-            author: "Visitor",
+            author: trimmedVisitorName,
+            avatar_url: resolvedAvatarUrl,
             message: trimmedMessage,
             image_url: imageUrl,
           });
@@ -165,7 +277,8 @@ export function WallApp() {
 
         const localPost: Post = {
           id: crypto.randomUUID(),
-          author: "Visitor",
+          author: trimmedVisitorName,
+          avatar_url: resolvedAvatarUrl,
           message: trimmedMessage,
           image_url: null,
           created_at: new Date().toISOString(),
@@ -186,6 +299,8 @@ export function WallApp() {
   }
 
   const remainingCharacters = MAX_MESSAGE_LENGTH - message.length;
+  const visitorInitial = visitorName.trim().slice(0, 1).toUpperCase() || "V";
+  const displayedAvatar = avatarPreview || avatarUrl;
 
   return (
     <main className="wall-shell">
@@ -231,6 +346,59 @@ export function WallApp() {
           )}
 
           <form className="composer" onSubmit={handleSubmit}>
+            <fieldset className="visitor-profile">
+              <legend>Posting as</legend>
+              <div className="visitor-profile-row">
+                <div className="visitor-avatar" aria-hidden="true">
+                  {displayedAvatar ? (
+                    <Image
+                      src={displayedAvatar}
+                      alt=""
+                      width={72}
+                      height={72}
+                      unoptimized
+                    />
+                  ) : (
+                    visitorInitial
+                  )}
+                </div>
+                <div className="visitor-profile-fields">
+                  <label htmlFor="visitor-name">Display name</label>
+                  <input
+                    id="visitor-name"
+                    name="visitor-name"
+                    type="text"
+                    value={visitorName}
+                    onChange={(event) => setVisitorName(event.target.value)}
+                    maxLength={MAX_VISITOR_NAME_LENGTH}
+                    required
+                    disabled={isSharing}
+                  />
+                  <div className="avatar-controls">
+                    <input
+                      ref={avatarInputRef}
+                      className="photo-input"
+                      id="visitor-avatar"
+                      name="visitor-avatar"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleAvatarChange}
+                      disabled={isSharing}
+                    />
+                    <label className="photo-picker" htmlFor="visitor-avatar">
+                      {displayedAvatar ? "Change profile photo" : "Add profile photo"}
+                    </label>
+                    {displayedAvatar && (
+                      <button className="clear-avatar" type="button" onClick={clearAvatar}>
+                        Remove
+                      </button>
+                    )}
+                    <span>JPG, PNG, or WebP · up to 2 MB</span>
+                  </div>
+                </div>
+              </div>
+            </fieldset>
+
             <label htmlFor="wall-message">Write something…</label>
             <textarea
               id="wall-message"
@@ -281,7 +449,13 @@ export function WallApp() {
               <button
                 className="share-button"
                 type="submit"
-                disabled={!message.trim() || isSharing || supabase === undefined}
+                disabled={
+                  !message.trim() ||
+                  !visitorName.trim() ||
+                  isSharing ||
+                  supabase === undefined ||
+                  !isProfileLoaded
+                }
               >
                 {isSharing ? "Sharing…" : "Share"}
               </button>
@@ -308,7 +482,17 @@ export function WallApp() {
               posts.map((post) => (
                 <article className="post" key={post.id}>
                   <div className="post-avatar" aria-hidden="true">
-                    {post.author.slice(0, 1).toUpperCase()}
+                    {post.avatar_url ? (
+                      <Image
+                        src={post.avatar_url}
+                        alt=""
+                        width={44}
+                        height={44}
+                        unoptimized
+                      />
+                    ) : (
+                      post.author.slice(0, 1).toUpperCase()
+                    )}
                   </div>
                   <div className="post-content">
                     <div className="post-meta">

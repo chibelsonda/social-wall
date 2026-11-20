@@ -28,6 +28,7 @@ body {
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
@@ -213,6 +214,106 @@ textarea {
   background: white;
   border: 2px solid #29343e;
   border-radius: 6px;
+}
+
+.visitor-profile {
+  min-width: 0;
+  margin: 0 0 1.25rem;
+  padding: 0 0 1.2rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.visitor-profile legend {
+  margin-bottom: 0.75rem;
+  padding: 0;
+  color: var(--facebook-blue-dark);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.visitor-profile-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.visitor-avatar {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  color: white;
+  background: #627f98;
+  border: 3px solid white;
+  border-radius: 4px;
+  outline: 1px solid #8495a3;
+  font-size: 1.5rem;
+  font-weight: 900;
+  place-items: center;
+}
+
+.visitor-avatar img,
+.post-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.visitor-profile-fields {
+  min-width: 0;
+}
+
+.visitor-profile-fields > label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.visitor-profile-fields > input {
+  width: min(100%, 360px);
+  padding: 0.58rem 0.7rem;
+  color: var(--ink);
+  background: #fbfdff;
+  border: 1px solid #9eacb9;
+  border-radius: 3px;
+  outline: none;
+}
+
+.visitor-profile-fields > input:focus {
+  border-color: var(--facebook-blue);
+  box-shadow: 0 0 0 3px rgba(40, 127, 209, 0.16);
+}
+
+.avatar-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.6rem;
+}
+
+.avatar-controls > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.clear-avatar {
+  padding: 0.35rem 0.15rem;
+  color: #9c3d35;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .composer > label {
@@ -422,6 +523,7 @@ textarea {
   font-family: var(--font-display);
   font-size: 1.3rem;
   font-weight: 900;
+  overflow: hidden;
   place-items: center;
 }
 
@@ -536,6 +638,20 @@ textarea {
 
   .composer {
     padding: 1rem;
+  }
+
+  .visitor-profile-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .visitor-avatar {
+    width: 52px;
+    height: 52px;
+  }
+
+  .avatar-controls {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .composer-footer,

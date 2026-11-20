@@ -33,4 +33,30 @@ describe("WallApp", () => {
     expect(screen.getByText("0 characters left")).toBeInTheDocument();
     expect(shareButton).toBeEnabled();
   });
+
+  it("uses and remembers the visitor's display name", async () => {
+    const user = userEvent.setup();
+    render(<WallApp />);
+
+    const nameInput = screen.getByLabelText("Display name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Casey Rivera");
+    await user.type(screen.getByLabelText("Write something…"), "Posting with my own name.");
+    await user.click(screen.getByRole("button", { name: "Share" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Casey Rivera" })).toBeInTheDocument();
+    });
+
+    const storedProfile = JSON.parse(
+      window.localStorage.getItem("my-wall-visitor-profile") || "{}",
+    );
+    const storedPosts = JSON.parse(window.localStorage.getItem("my-wall-demo-posts") || "[]");
+    expect(storedProfile.name).toBe("Casey Rivera");
+    expect(storedPosts[0]).toMatchObject({
+      author: "Casey Rivera",
+      avatar_url: null,
+      message: "Posting with my own name.",
+    });
+  });
 });

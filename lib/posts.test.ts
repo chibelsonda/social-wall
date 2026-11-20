@@ -6,6 +6,7 @@ describe("addPostNewestFirst", () => {
     const older: Post = {
       id: "older",
       author: "A",
+      avatar_url: null,
       message: "Older",
       image_url: null,
       created_at: "2025-01-01T10:00:00.000Z",
@@ -13,6 +14,7 @@ describe("addPostNewestFirst", () => {
     const newer: Post = {
       id: "newer",
       author: "B",
+      avatar_url: null,
       message: "Newer",
       image_url: null,
       created_at: "2025-01-01T11:00:00.000Z",
