@@ -9,6 +9,7 @@ describe("addPostNewestFirst", () => {
       avatar_url: null,
       message: "Older",
       image_url: null,
+      image_urls: [],
       created_at: "2025-01-01T10:00:00.000Z",
     };
     const newer: Post = {
@@ -17,6 +18,7 @@ describe("addPostNewestFirst", () => {
       avatar_url: null,
       message: "Newer",
       image_url: null,
+      image_urls: [],
       created_at: "2025-01-01T11:00:00.000Z",
     };
 

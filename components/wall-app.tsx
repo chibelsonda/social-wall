@@ -4,11 +4,12 @@ import Image from "next/image";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { demoPosts } from "@/lib/demo-posts";
 import {
-  removePostPhoto,
+  MAX_POST_PHOTOS,
+  removePostPhotos,
   uploadPostPhoto,
   uploadVisitorAvatar,
   validateAvatar,
-  validatePhoto,
+  validatePhotoSelection,
 } from "@/lib/photos";
 import { addPostNewestFirst, createPost, fetchPosts, subscribeToPosts } from "@/lib/posts";
 import { getBrowserSupabase } from "@/lib/supabase";
@@ -18,6 +19,10 @@ const MAX_MESSAGE_LENGTH = 280;
 const MAX_VISITOR_NAME_LENGTH = 40;
 const LOCAL_POSTS_KEY = "my-wall-demo-posts";
 const VISITOR_PROFILE_KEY = "my-wall-visitor-profile";
+const THEME_KEY = "my-wall-theme";
+const DEFAULT_AVATAR_SRC = "/images/default-avatar.png";
+
+type Theme = "light" | "dark";
 
 type VisitorProfile = {
   name: string;
@@ -32,10 +37,71 @@ function CameraIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+      <path d="M9 3.25h6a.75.75 0 0 1 .75.75v1.25H20a.75.75 0 0 1 0 1.5h-1.05l-.73 12.02A2.25 2.25 0 0 1 15.98 21H8.02a2.25 2.25 0 0 1-2.24-2.23L5.05 6.75H4a.75.75 0 0 1 0-1.5h4.25V4A.75.75 0 0 1 9 3.25Zm.75 2h4.5v-.5h-4.5v.5ZM6.55 6.75l.73 11.93a.75.75 0 0 0 .74.82h7.96a.75.75 0 0 0 .74-.82l.73-11.93H6.55Zm3.2 2.5a.75.75 0 0 1 .75.75v6.25a.75.75 0 0 1-1.5 0V10a.75.75 0 0 1 .75-.75Zm4.5 0A.75.75 0 0 1 15 10v6.25a.75.75 0 0 1-1.5 0V10a.75.75 0 0 1 .75-.75Z" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="m6 6 12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
 function SendIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
       <path d="m20.65 3.33-8.02 17.05a.75.75 0 0 1-1.4-.12L9.4 13.85l-5.65-3.5a.75.75 0 0 1 .2-1.36l15.82-6.7a.75.75 0 0 1 .88 1.04ZM6 9.83l4.44 2.75a.75.75 0 0 1 .33.44l1.43 5.03 5.98-12.72L6 9.83Z" />
+    </svg>
+  );
+}
+
+function SunIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M4.57 4.57 6 6M18 18l1.43 1.43M2.5 12h2M19.5 12h2M4.57 19.43 6 18M18 6l1.43-1.43" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.25 15.2A8.5 8.5 0 0 1 8.8 3.75 8.5 8.5 0 1 0 20.25 15.2Z" />
     </svg>
   );
 }
@@ -78,10 +144,6 @@ function loadVisitorProfile(): VisitorProfile {
 }
 
 export function WallApp() {
-  const defaultOwnerName = process.env.NEXT_PUBLIC_WALL_OWNER_NAME || "Alex Morgan";
-  const network = process.env.NEXT_PUBLIC_WALL_NETWORK || "Stanford Alum";
-  const city = process.env.NEXT_PUBLIC_WALL_CITY || "Palo Alto, CA";
-
   const [supabase, setSupabase] = useState<ReturnType<typeof getBrowserSupabase> | undefined>(
     undefined,
   );
@@ -91,14 +153,37 @@ export function WallApp() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isAvatarSaving, setIsAvatarSaving] = useState(false);
+  const [isAvatarSaved, setIsAvatarSaved] = useState(false);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
+  const [visitorLocation, setVisitorLocation] = useState<string | null>(null);
+  const [visitorTimezone, setVisitorTimezone] = useState<string | null>(null);
+  const [isVisitorContextLoading, setIsVisitorContextLoading] = useState(true);
+  const [theme, setTheme] = useState<Theme>("light");
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const lightboxCloseRef = useRef<HTMLButtonElement>(null);
+  const lightboxTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem(THEME_KEY);
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+    const resolvedTheme: Theme =
+      savedTheme === "light" || savedTheme === "dark"
+        ? savedTheme
+        : prefersDark
+          ? "dark"
+          : "light";
+
+    setTheme(resolvedTheme);
+    document.documentElement.dataset.theme = resolvedTheme;
+  }, []);
 
   useEffect(() => {
     setSupabase(getBrowserSupabase());
@@ -109,6 +194,40 @@ export function WallApp() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    setVisitorTimezone(browserTimezone);
+
+    fetch("/api/visitor-context", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("Unable to detect visitor context");
+        return response.json() as Promise<{ location: string | null; timezone: string | null }>;
+      })
+      .then((context) => {
+        if (!active) return;
+        setVisitorLocation(context.location);
+        setVisitorTimezone(context.timezone || browserTimezone);
+      })
+      .catch(() => {
+        // Browser timezone remains available when local development has no Vercel geo headers.
+      })
+      .finally(() => {
+        if (active) setIsVisitorContextLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function toggleTheme() {
+    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem(THEME_KEY, nextTheme);
+  }
+
+  useEffect(() => {
     if (!isProfileLoaded) return;
 
     window.localStorage.setItem(
@@ -116,6 +235,29 @@ export function WallApp() {
       JSON.stringify({ name: visitorName, avatarUrl } satisfies VisitorProfile),
     );
   }, [avatarUrl, isProfileLoaded, visitorName]);
+
+  useEffect(() => {
+    if (!lightboxImage) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    lightboxCloseRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setLightboxImage(null);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [lightboxImage]);
+
+  function closeLightbox() {
+    setLightboxImage(null);
+    window.setTimeout(() => lightboxTriggerRef.current?.focus(), 0);
+  }
 
   useEffect(() => {
     if (!selectedAvatar) {
@@ -129,15 +271,15 @@ export function WallApp() {
   }, [selectedAvatar]);
 
   useEffect(() => {
-    if (!selectedPhoto) {
-      setPhotoPreview(null);
+    if (selectedPhotos.length === 0) {
+      setPhotoPreviews([]);
       return;
     }
 
-    const previewUrl = URL.createObjectURL(selectedPhoto);
-    setPhotoPreview(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [selectedPhoto]);
+    const previewUrls = selectedPhotos.map((photo) => URL.createObjectURL(photo));
+    setPhotoPreviews(previewUrls);
+    return () => previewUrls.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+  }, [selectedPhotos]);
 
   useEffect(() => {
     let active = true;
@@ -171,18 +313,23 @@ export function WallApp() {
     };
   }, [supabase]);
 
-  function clearSelectedPhoto() {
-    setSelectedPhoto(null);
+  function clearSelectedPhotos() {
+    setSelectedPhotos([]);
     if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  function removeSelectedPhoto(index: number) {
+    setSelectedPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index));
   }
 
   function clearAvatar() {
     setSelectedAvatar(null);
     setAvatarUrl(null);
+    setIsAvatarSaved(true);
     if (avatarInputRef.current) avatarInputRef.current.value = "";
   }
 
-  function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -195,13 +342,37 @@ export function WallApp() {
 
     setError(null);
     setSelectedAvatar(file);
+    setIsAvatarSaved(false);
+
+    if (!supabase) {
+      setSelectedAvatar(null);
+      setError("Profile photo uploads require a connected Supabase project.");
+      event.target.value = "";
+      return;
+    }
+
+    setIsAvatarSaving(true);
+
+    try {
+      const uploadedAvatar = await uploadVisitorAvatar(supabase, file);
+      setAvatarUrl(uploadedAvatar.publicUrl);
+      setSelectedAvatar(null);
+      setIsAvatarSaved(true);
+      event.target.value = "";
+    } catch {
+      setSelectedAvatar(null);
+      setError("Failed to upload profile photo. Please try again.");
+      event.target.value = "";
+    } finally {
+      setIsAvatarSaving(false);
+    }
   }
 
   function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
 
-    const validationError = validatePhoto(file);
+    const validationError = validatePhotoSelection(files, selectedPhotos.length);
     if (validationError) {
       setError(validationError);
       event.target.value = "";
@@ -209,7 +380,8 @@ export function WallApp() {
     }
 
     setError(null);
-    setSelectedPhoto(file);
+    setSelectedPhotos((current) => [...current, ...files]);
+    event.target.value = "";
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -229,39 +401,22 @@ export function WallApp() {
     setIsSharing(true);
     setError(null);
 
-    let uploadedPhotoPath: string | null = null;
+    const uploadedPhotoPaths: string[] = [];
 
     try {
-      let resolvedAvatarUrl = avatarUrl;
-
-      if (selectedAvatar) {
-        if (!supabase) {
-          setError("Profile photo uploads require a connected Supabase project.");
-          return;
-        }
-
-        try {
-          const uploadedAvatar = await uploadVisitorAvatar(supabase, selectedAvatar);
-          resolvedAvatarUrl = uploadedAvatar.publicUrl;
-          setAvatarUrl(uploadedAvatar.publicUrl);
-          setSelectedAvatar(null);
-          if (avatarInputRef.current) avatarInputRef.current.value = "";
-        } catch {
-          setError("Failed to upload profile photo. Please try again.");
-          return;
-        }
-      }
-
       if (supabase) {
-        let imageUrl: string | null = null;
+        const imageUrls: string[] = [];
 
-        if (selectedPhoto) {
+        if (selectedPhotos.length > 0) {
           try {
-            const uploadedPhoto = await uploadPostPhoto(supabase, selectedPhoto);
-            uploadedPhotoPath = uploadedPhoto.path;
-            imageUrl = uploadedPhoto.publicUrl;
+            for (const photo of selectedPhotos) {
+              const uploadedPhoto = await uploadPostPhoto(supabase, photo);
+              uploadedPhotoPaths.push(uploadedPhoto.path);
+              imageUrls.push(uploadedPhoto.publicUrl);
+            }
           } catch {
-            setError("Failed to upload photo. Please try again.");
+            await removePostPhotos(supabase, uploadedPhotoPaths);
+            setError("One or more photos failed to upload. Please try again.");
             return;
           }
         }
@@ -270,17 +425,18 @@ export function WallApp() {
         try {
           savedPost = await createPost(supabase, {
             author: trimmedVisitorName,
-            avatar_url: resolvedAvatarUrl,
+            avatar_url: avatarUrl,
             message: trimmedMessage,
-            image_url: imageUrl,
+            image_url: imageUrls[0] ?? null,
+            image_urls: imageUrls,
           });
         } catch (postError) {
-          if (uploadedPhotoPath) await removePostPhoto(supabase, uploadedPhotoPath);
+          await removePostPhotos(supabase, uploadedPhotoPaths);
           throw postError;
         }
         setPosts((current) => addPostNewestFirst(current, savedPost));
       } else {
-        if (selectedPhoto) {
+        if (selectedPhotos.length > 0) {
           setError("Photo uploads require a connected Supabase project.");
           return;
         }
@@ -288,9 +444,10 @@ export function WallApp() {
         const localPost: Post = {
           id: crypto.randomUUID(),
           author: trimmedVisitorName,
-          avatar_url: resolvedAvatarUrl,
+          avatar_url: avatarUrl,
           message: trimmedMessage,
           image_url: null,
+          image_urls: [],
           created_at: new Date().toISOString(),
         };
         setPosts((current) => {
@@ -300,7 +457,7 @@ export function WallApp() {
         });
       }
       setMessage("");
-      clearSelectedPhoto();
+      clearSelectedPhotos();
     } catch {
       setError("Your post wasn't shared. Please check your connection and try again.");
     } finally {
@@ -309,17 +466,18 @@ export function WallApp() {
   }
 
   const remainingCharacters = MAX_MESSAGE_LENGTH - message.length;
-  const visitorInitial = visitorName.trim().slice(0, 1).toUpperCase() || "V";
   const displayedAvatar = avatarPreview || avatarUrl;
   const trimmedVisitorName = visitorName.trim();
-  const hasCustomizedProfile = Boolean(avatarUrl) || trimmedVisitorName !== "Visitor";
-  const profileName = hasCustomizedProfile && trimmedVisitorName ? trimmedVisitorName : defaultOwnerName;
-  const profileInitials = profileName
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const hasVisitorName = Boolean(trimmedVisitorName) && trimmedVisitorName !== "Visitor";
+  const profileName = hasVisitorName ? trimmedVisitorName : null;
+  const profileLabel = profileName ? `${profileName}'s profile` : "Community wall";
+  const profilePhotoLabel = profileName
+    ? displayedAvatar
+      ? `${profileName}'s profile photo`
+      : `Default profile photo for ${profileName}`
+    : displayedAvatar
+      ? "Visitor profile photo"
+      : "Default community profile photo";
 
   return (
     <main className="wall-shell">
@@ -328,30 +486,82 @@ export function WallApp() {
           <a className="brand" href="#top" aria-label="Wall home">
             wall<span className="brand-dot">.</span>
           </a>
-          <span className="topbar-note">a little corner of the internet</span>
+          <div className="topbar-actions">
+            <span className="topbar-note">a little corner of the internet</span>
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            >
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="page-grid" id="top">
-        <aside className="profile-column" aria-label={`${profileName}'s profile`}>
-          <div
-            className={avatarUrl ? "portrait portrait--uploaded" : "portrait"}
-            role="img"
-            aria-label={
-              avatarUrl ? `${profileName}'s profile photo` : `Placeholder portrait for ${profileName}`
-            }
-          >
-            {avatarUrl ? (
+        <aside className="profile-column" aria-label={profileLabel}>
+          <div className="portrait-editor">
+            <div
+              className="portrait portrait--image"
+              role="img"
+              aria-label={profilePhotoLabel}
+            >
               <Image
-                src={avatarUrl}
+                src={displayedAvatar || DEFAULT_AVATAR_SRC}
                 alt=""
                 width={640}
                 height={640}
-                unoptimized
+                unoptimized={Boolean(displayedAvatar)}
+                priority
               />
-            ) : (
-              <span>{profileInitials}</span>
-            )}
+            </div>
+            <input
+              ref={avatarInputRef}
+              className="photo-input"
+              id="visitor-avatar"
+              name="visitor-avatar"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarChange}
+              disabled={isSharing || isAvatarSaving || supabase === undefined}
+            />
+            <div className="portrait-actions">
+              {displayedAvatar && (
+                <button
+                  className="portrait-remove"
+                  type="button"
+                  onClick={clearAvatar}
+                  disabled={isAvatarSaving}
+                  title="Remove profile photo"
+                  aria-label="Remove profile photo"
+                >
+                  <TrashIcon />
+                </button>
+              )}
+              <label
+                className="portrait-camera"
+                htmlFor="visitor-avatar"
+                title={
+                  isAvatarSaving
+                    ? "Saving profile photo"
+                    : displayedAvatar
+                      ? "Change profile photo"
+                      : "Add profile photo"
+                }
+              >
+                <CameraIcon />
+                <span className="sr-only">
+                  {isAvatarSaving
+                    ? "Saving profile photo"
+                    : displayedAvatar
+                      ? "Change profile photo"
+                      : "Add profile photo"}
+                </span>
+              </label>
+            </div>
           </div>
 
           <section className="info-card">
@@ -361,12 +571,16 @@ export function WallApp() {
             </div>
             <dl>
               <div>
-                <dt>Networks</dt>
-                <dd>{network}</dd>
+                <dt>Time zone</dt>
+                <dd aria-live="polite">
+                  {visitorTimezone?.replaceAll("_", " ") || "Detecting…"}
+                </dd>
               </div>
               <div>
-                <dt>Current City</dt>
-                <dd>{city}</dd>
+                <dt>Approx. location</dt>
+                <dd aria-live="polite" title="Approximate location based on network information">
+                  {isVisitorContextLoading ? "Detecting…" : visitorLocation || "Unavailable locally"}
+                </dd>
               </div>
             </dl>
           </section>
@@ -374,7 +588,7 @@ export function WallApp() {
 
         <section className="wall-column" aria-labelledby="wall-heading">
           <div className="profile-heading">
-            <p className="eyebrow">{profileName}&apos;s profile</p>
+            <p className="eyebrow">{profileLabel}</p>
             <h1 id="wall-heading">The Wall</h1>
             <p>Leave a note, share a moment, and make this little corner of the internet memorable.</p>
           </div>
@@ -387,30 +601,21 @@ export function WallApp() {
 
           <form className="composer" onSubmit={handleSubmit}>
             <div className="composer-heading">
-              <div>
-                <span className="section-kicker">New post</span>
-                <h2>Write something</h2>
-              </div>
-              <span className="privacy-note">Visible to everyone</span>
+              <h2>Write something</h2>
             </div>
-            <fieldset className="visitor-profile">
-              <legend>Posting as</legend>
+            <div className="visitor-profile">
               <div className="visitor-profile-row">
                 <div className="visitor-avatar" aria-hidden="true">
-                  {displayedAvatar ? (
-                    <Image
-                      src={displayedAvatar}
-                      alt=""
-                      width={72}
-                      height={72}
-                      unoptimized
-                    />
-                  ) : (
-                    visitorInitial
-                  )}
+                  <Image
+                    src={displayedAvatar || DEFAULT_AVATAR_SRC}
+                    alt=""
+                    width={72}
+                    height={72}
+                    unoptimized={Boolean(displayedAvatar)}
+                  />
                 </div>
                 <div className="visitor-profile-fields">
-                  <label htmlFor="visitor-name">Display name</label>
+                  <label className="sr-only" htmlFor="visitor-name">Display name</label>
                   <input
                     id="visitor-name"
                     name="visitor-name"
@@ -420,44 +625,34 @@ export function WallApp() {
                     maxLength={MAX_VISITOR_NAME_LENGTH}
                     required
                     disabled={isSharing}
+                    placeholder="Display name"
                   />
-                  <div className="avatar-controls">
-                    <input
-                      ref={avatarInputRef}
-                      className="photo-input"
-                      id="visitor-avatar"
-                      name="visitor-avatar"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleAvatarChange}
-                      disabled={isSharing}
-                    />
-                    <label className="photo-picker" htmlFor="visitor-avatar">
-                      <CameraIcon />
-                      {displayedAvatar ? "Change profile photo" : "Add profile photo"}
-                    </label>
-                    {displayedAvatar && (
-                      <button className="clear-avatar" type="button" onClick={clearAvatar}>
-                        Remove
-                      </button>
-                    )}
-                    <span>JPG, PNG, or WebP · up to 2 MB</span>
-                  </div>
+                  <span className="sr-only" aria-live="polite">
+                    {isAvatarSaving
+                      ? "Saving profile photo…"
+                      : isAvatarSaved
+                        ? "Profile photo saved"
+                        : ""}
+                  </span>
                 </div>
               </div>
-            </fieldset>
+            </div>
 
-            <label className="sr-only" htmlFor="wall-message">Write something…</label>
-            <textarea
-              id="wall-message"
-              name="message"
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              maxLength={MAX_MESSAGE_LENGTH}
-              placeholder={`What do you want to say to ${profileName}?`}
-              rows={4}
-            />
-            <div className="photo-controls">
+            <div className="message-field">
+              <label className="sr-only" htmlFor="wall-message">Write something…</label>
+              <textarea
+                id="wall-message"
+                name="message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                maxLength={MAX_MESSAGE_LENGTH}
+                placeholder={
+                  profileName
+                    ? `What do you want to say to ${profileName}?`
+                    : "Share something with the community…"
+                }
+                rows={4}
+              />
               <input
                 ref={photoInputRef}
                 className="photo-input"
@@ -465,29 +660,51 @@ export function WallApp() {
                 name="photo"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
                 onChange={handlePhotoChange}
-                disabled={isSharing}
+                disabled={isSharing || selectedPhotos.length >= MAX_POST_PHOTOS}
               />
-              <label className="photo-picker" htmlFor="wall-photo">
+              <label
+                className="message-photo-picker"
+                htmlFor="wall-photo"
+                title={`Add photos · up to ${MAX_POST_PHOTOS} images, 5 MB each`}
+              >
                 <CameraIcon />
-                Add a photo
+                <span className="sr-only">Add photos</span>
               </label>
-              <span>JPG, PNG, WebP, or GIF · up to 5 MB</span>
             </div>
-            {selectedPhoto && photoPreview && (
-              <div className="photo-preview">
-                <Image
-                  src={photoPreview}
-                  alt="Selected photo preview"
-                  width={640}
-                  height={420}
-                  unoptimized
-                />
-                <div>
-                  <span>{selectedPhoto.name}</span>
-                  <button className="remove-photo" type="button" onClick={clearSelectedPhoto}>
-                    Remove
-                  </button>
+            {selectedPhotos.length > 0 && photoPreviews.length === selectedPhotos.length && (
+              <div className="photo-preview-section">
+                <div className="photo-preview-heading">
+                  <span>
+                    {selectedPhotos.length} of {MAX_POST_PHOTOS} photos selected
+                  </span>
+                  <button type="button" onClick={clearSelectedPhotos}>Remove all</button>
+                </div>
+                <div className="photo-preview-grid">
+                  {selectedPhotos.map((photo, index) => (
+                    <div className="photo-preview" key={`${photo.name}-${photo.lastModified}-${index}`}>
+                      <Image
+                        src={photoPreviews[index]}
+                        alt={`Selected photo ${index + 1} preview`}
+                        width={640}
+                        height={420}
+                        unoptimized
+                      />
+                      <div>
+                        <span>{photo.name}</span>
+                        <button
+                          className="remove-photo"
+                          type="button"
+                          onClick={() => removeSelectedPhoto(index)}
+                          title={`Remove ${photo.name}`}
+                          aria-label={`Remove ${photo.name}`}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -502,11 +719,12 @@ export function WallApp() {
                   !message.trim() ||
                   !visitorName.trim() ||
                   isSharing ||
+                  isAvatarSaving ||
                   supabase === undefined ||
                   !isProfileLoaded
                 }
               >
-                <span>{isSharing ? "Sharing…" : "Share"}</span>
+                <span>{isSharing ? "Sharing…" : "Share post"}</span>
                 {!isSharing && <SendIcon />}
               </button>
             </div>
@@ -532,44 +750,97 @@ export function WallApp() {
             ) : posts.length === 0 ? (
               <div className="feed-state">The wall is quiet. Be the first to leave a note.</div>
             ) : (
-              posts.map((post) => (
-                <article className="post" key={post.id}>
-                  <div className="post-avatar" aria-hidden="true">
-                    {post.avatar_url ? (
+              posts.map((post) => {
+                const postImages =
+                  post.image_urls?.length > 0
+                    ? post.image_urls
+                    : post.image_url
+                      ? [post.image_url]
+                      : [];
+
+                return (
+                  <article className="post" key={post.id}>
+                    <div className="post-avatar" aria-hidden="true">
                       <Image
-                        src={post.avatar_url}
+                        src={post.avatar_url || DEFAULT_AVATAR_SRC}
                         alt=""
                         width={44}
                         height={44}
-                        unoptimized
+                        unoptimized={Boolean(post.avatar_url)}
                       />
-                    ) : (
-                      post.author.slice(0, 1).toUpperCase()
-                    )}
-                  </div>
-                  <div className="post-content">
-                    <div className="post-meta">
-                      <h3>{post.author}</h3>
-                      <time dateTime={post.created_at}>{formatTimestamp(post.created_at)}</time>
                     </div>
-                    <p>{post.message}</p>
-                    {post.image_url && (
-                      <Image
-                        className="post-image"
-                        src={post.image_url}
-                        alt={`Photo shared by ${post.author}`}
-                        width={960}
-                        height={640}
-                        unoptimized
-                      />
-                    )}
-                  </div>
-                </article>
-              ))
+                    <div className="post-content">
+                      <div className="post-meta">
+                        <h3>{post.author}</h3>
+                        <time dateTime={post.created_at}>{formatTimestamp(post.created_at)}</time>
+                      </div>
+                      <p>{post.message}</p>
+                      {postImages.length > 0 && (
+                        <div className={`post-gallery post-gallery--${postImages.length}`}>
+                          {postImages.map((imageUrl, index) => (
+                            <button
+                              className="post-image-button"
+                              type="button"
+                              key={`${imageUrl}-${index}`}
+                              aria-label={`View photo ${index + 1} of ${postImages.length} shared by ${post.author}`}
+                              onClick={(event) => {
+                                const alt = `Photo ${index + 1} of ${postImages.length} shared by ${post.author}`;
+                                lightboxTriggerRef.current = event.currentTarget;
+                                setLightboxImage({ src: imageUrl, alt });
+                              }}
+                            >
+                              <Image
+                                className="post-image"
+                                src={imageUrl}
+                                alt=""
+                                width={960}
+                                height={640}
+                                unoptimized
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })
             )}
           </div>
         </section>
       </div>
+
+      {lightboxImage && (
+        <div
+          className="lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Post photo viewer"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeLightbox();
+          }}
+        >
+          <button
+            ref={lightboxCloseRef}
+            className="lightbox-close"
+            type="button"
+            onClick={closeLightbox}
+            aria-label="Close photo viewer"
+          >
+            <CloseIcon />
+          </button>
+          <div className="lightbox-content">
+            <Image
+              src={lightboxImage.src}
+              alt={lightboxImage.alt}
+              width={1600}
+              height={1200}
+              unoptimized
+              priority
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

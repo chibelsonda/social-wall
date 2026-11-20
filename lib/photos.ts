@@ -4,6 +4,7 @@ export const WALL_PHOTOS_BUCKET = "wall-photos";
 export const WALL_AVATARS_BUCKET = "wall-avatars";
 export const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 export const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
+export const MAX_POST_PHOTOS = 5;
 
 const PHOTO_EXTENSIONS: Record<string, string> = {
   "image/gif": "gif",
@@ -25,6 +26,19 @@ export function validatePhoto(file: File): string | null {
 
   if (file.size > MAX_PHOTO_SIZE) {
     return "Photos must be 5 MB or smaller.";
+  }
+
+  return null;
+}
+
+export function validatePhotoSelection(files: File[], currentCount = 0): string | null {
+  if (currentCount + files.length > MAX_POST_PHOTOS) {
+    return `You can add up to ${MAX_POST_PHOTOS} photos per post.`;
+  }
+
+  for (const file of files) {
+    const validationError = validatePhoto(file);
+    if (validationError) return `${file.name}: ${validationError}`;
   }
 
   return null;
@@ -74,4 +88,9 @@ export async function uploadVisitorAvatar(client: SupabaseClient, file: File) {
 
 export async function removePostPhoto(client: SupabaseClient, path: string) {
   await client.storage.from(WALL_PHOTOS_BUCKET).remove([path]);
+}
+
+export async function removePostPhotos(client: SupabaseClient, paths: string[]) {
+  if (paths.length === 0) return;
+  await client.storage.from(WALL_PHOTOS_BUCKET).remove(paths);
 }

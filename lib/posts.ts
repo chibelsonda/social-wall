@@ -1,7 +1,7 @@
 import type { RealtimePostgresInsertPayload, SupabaseClient } from "@supabase/supabase-js";
 import type { Post } from "./types";
 
-const POST_FIELDS = "id,author,avatar_url,message,image_url,created_at";
+const POST_FIELDS = "id,author,avatar_url,message,image_url,image_urls,created_at";
 
 export async function fetchPosts(client: SupabaseClient): Promise<Post[]> {
   const { data, error } = await client
@@ -19,6 +19,7 @@ export async function createPost(
   post: Pick<Post, "author" | "message"> & {
     avatar_url?: string | null;
     image_url?: string | null;
+    image_urls?: string[];
   },
 ): Promise<Post> {
   const { data, error } = await client.from("posts").insert(post).select(POST_FIELDS).single();

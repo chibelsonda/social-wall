@@ -1,4 +1,10 @@
-import { MAX_AVATAR_SIZE, MAX_PHOTO_SIZE, validateAvatar, validatePhoto } from "./photos";
+import {
+  MAX_AVATAR_SIZE,
+  MAX_PHOTO_SIZE,
+  validateAvatar,
+  validatePhoto,
+  validatePhotoSelection,
+} from "./photos";
 
 describe("validatePhoto", () => {
   it("accepts supported image formats within the size limit", () => {
@@ -14,6 +20,20 @@ describe("validatePhoto", () => {
 
     expect(validatePhoto(textFile)).toBe("Choose a JPG, PNG, WebP, or GIF image.");
     expect(validatePhoto(largePhoto)).toBe("Photos must be 5 MB or smaller.");
+  });
+});
+
+describe("validatePhotoSelection", () => {
+  it("accepts up to five valid photos and rejects larger selections", () => {
+    const photos = Array.from(
+      { length: 5 },
+      (_, index) => new File([`photo-${index}`], `photo-${index}.jpg`, { type: "image/jpeg" }),
+    );
+
+    expect(validatePhotoSelection(photos)).toBeNull();
+    expect(validatePhotoSelection([photos[0]], 5)).toBe(
+      "You can add up to 5 photos per post.",
+    );
   });
 });
 

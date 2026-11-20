@@ -21,6 +21,7 @@ A nostalgic Facebook-style wall built with Next.js 15, React 19, and Supabase. V
    - [`supabase/migrations/001_create_posts.sql`](supabase/migrations/001_create_posts.sql) creates the posts table, public read/insert policies, newest-first index, and Realtime feed.
    - [`supabase/migrations/002_add_post_photos.sql`](supabase/migrations/002_add_post_photos.sql) adds photo URLs and creates the public `wall-photos` Storage bucket with restricted upload policies.
    - [`supabase/migrations/003_add_visitor_profiles.sql`](supabase/migrations/003_add_visitor_profiles.sql) adds per-post avatars and creates the public `wall-avatars` Storage bucket for visitor profile photos.
+   - [`supabase/migrations/004_add_multiple_post_images.sql`](supabase/migrations/004_add_multiple_post_images.sql) adds support for up to five images per post and migrates existing single-image posts.
 
 4. Add the project URL and publishable key from **Connect → App Frameworks** to `.env.local`.
 
@@ -34,7 +35,7 @@ Without Supabase variables, the UI runs in demo mode and stores posts in the cur
 
 ## Customize the profile
 
-The optional values in `.env.example` set the profile name, network, and city. The portrait is a deliberate placeholder made from CSS so it can be replaced later with a personal image.
+Visitors without a custom name see neutral “Community wall” copy, and visitors without a custom photo use the included default avatar. On Vercel, the About card uses approximate request-location headers and the visitor's browser timezone instead of hard-coded profile details; no IP address or coordinates are stored or returned to the client.
 
 ## Visitor profiles
 
